@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Title</title>
+    <script src="jquery.min.js"></script>
+    <script src="jquery.easyui.min.js"></script>
+    <link rel="stylesheet" href="themes/default/easyui.css">
+    <style>
+        .tree-checkbox,.tree-file{
+            display: none;
+        }
+        .textbox .clear:after{
+            content:'×';
+        }
+        .textbox-icon.clear{
+            line-height: 1.7;
+            text-align: center;
+            visibility: hidden;
+        }
+        div[type='combsearch']{
+            padding:2px;
+        }
+        div[type='combsearch'] input{
+            width: 100%;
+            height: 30px;
+            line-height: 30px;
+            border: 1px solid #95B8E7;
+            padding-left: 10px;
+        }
+    </style>
+</head>
+<body>
+
+<select id="cc" class="easyui-combotree mytree" multiple style="width: 200px;" >
+
+</select>
+<script>
+    $.fn.extend({
+        _combotree: function (options) {
+            var _this=this;
+            var showIcon = function () {
+                var icon = _this.combobox('getIcon', 0);
+                if (_this.combobox('getValue')&&_this.combobox('getValue').length > 0) {
+                    icon.css('visibility', 'visible');
+                } else {
+                    icon.css('visibility', 'hidden');
+                }
+            };
+            var setttings = $.extend({
+                formatter: function (org) {//图标更改
+                    if (org.type == 1) {
+                        return '<span class="iconfont icon-gongsi"></span>' + org.text
+                    } else if (org.type == 2) {
+                        return '<span class="iconfont icon-zuzhijigou_ico_docu"></span>' + org.text
+                    } else {
+                        return org.text
+                    }
+                },
+                onBeforeSelect: function (node) {//父节点上触发节点展开收起
+                    if (node.type == 0) {
+                        $(node.target).find('.tree-hit').trigger('click');
+                    }
+                },
+                onCheck: function (node, checked) {
+                    _this.combotree("setValue",node.id);
+                    _this.combo("hidePanel")
+                },
+                icons: [{//增加清空按钮
+                    iconCls: 'clear',
+                    handler: function (e) {
+                        _this.combotree('clear').combotree('tree');
+                    }
+                }],
+                onLoadSuccess: function () {
+                    var idname = $(_this).attr("id");
+                    var $root = $(_this).combotree("tree");      //展开根节点
+                    var str = '<div type="combsearch" class="combotree-search_' + idname + '" ><input type="text" placeholder="请输入您要搜索的内容" /><span class="combotree-tips"></span></div>';
+                    var $search = $root.siblings("div");
+                    if ($search.length == 0) {
+                        $root.before($(str));
+                    }
+                    _this.methods.search();
+
+                },
+                onChange:function (val) {
+                    showIcon();
+                }
+
+            },options)
+
+            this.methods={
+                init:function() {
+                    var methods=this;
+                    _this.combotree(setttings)
+
+
+                },
+                search:function () {
+                    var $root = _this.combotree("tree");
+                    var $search = $root.siblings("div").find("input");
+                    $search.on('click',function () {/*搜索输入框聚焦 */
+                        $(this).focus()
+                    })
+                    $search.on("input propertychange", function () {
+                        var treeid = $search.parents("div").prop("class").replace('combotree-search_','');
+                        _this.combotree('tree').tree("search", $(this).val());
+                        if ($(this).val() == "" || null == $(this).val()) {
+                            $("#" + treeid).combotree('tree').tree("expandAll");
+                        }
+                    }).on('blur', function () {
+
+
+                    });
+                }
+           }
+
+
+          this.methods.init()
+        }
+    })
+    $.extend($.fn.tree.methods, {
+        /**
+         * 扩展easyui tree的搜索方法
+         * @param tree easyui tree的根DOM节点(UL节点)的jQuery对象
+         * @param searchText 检索的文本
+         * @param this-context easyui tree的tree对象
+         */
+        search: function (jqTree, searchText) {
+            //easyui tree的tree对象。可以通过tree.methodName(jqTree)方式调用easyui tree的方法
+            var tree = this;
+
+            //获取所有的树节点
+            var nodeList = getAllNodes(jqTree, tree);
+
+            //如果没有搜索条件，则展示所有树节点
+            searchText = $.trim(searchText);
+            if (searchText == "") {
+                $(jqTree).parents(".combo-panel").find(".combotree-tips").html("")
+                for (var i = 0; i < nodeList.length; i++) {
+                    $(".tree-node-targeted", nodeList[i].target).removeClass("tree-node-targeted");
+                    $(nodeList[i].target).show();
+                }
+                //展开已选择的节点（如果之前选择了）
+                var selectedNode = tree.getSelected(jqTree);
+                if (selectedNode) {
+                    tree.expandTo(jqTree, selectedNode.target);
+                }
+                return;
+            }
+            //搜索匹配的节点并高亮显示
+            var matchedNodeList = [];
+            if (nodeList && nodeList.length > 0) {
+                var node = null;
+                for (var i = 0; i < nodeList.length; i++) {
+                    node = nodeList[i];
+
+                    if (isMatch(searchText, node.text)) {
+
+                        matchedNodeList.push(node);
+                        if(node.children&&node.children.length>0){
+                            node.children.forEach(function (item) {
+                                matchedNodeList.push(item)
+                                if(item.children&&item.children.length>0){
+                                    item.children.forEach(function (item2) {
+                                        matchedNodeList.push(item2)
+                                        if(item2.children&&item2.children.length>0){
+                                            item2.children.forEach(function (item3) {
+                                                matchedNodeList.push(item3)
+                                            })
+
+                                        }
+                                    })
+
+                                }
+                            })
+
+                        }
+                    }
+                }
+
+
+                //隐藏所有节点
+                for (var i = 0; i < nodeList.length; i++) {
+                    $(".tree-node-targeted:visible", nodeList[i].target).removeClass("tree-node-targeted");
+                    $(nodeList[i].target).hide();
+
+                }
+
+                //折叠所有节点
+                tree.collapseAll(jqTree);
+
+                //展示所有匹配的节点以及父节点
+                for (var i = 0; i < matchedNodeList.length; i++) {
+                    showMatchedNode(jqTree, tree, matchedNodeList[i]);
+                }
+                if (matchedNodeList.length > 0) {
+                    $(jqTree).parents(".combo-panel").find(".combotree-tips").html("")
+                } else {
+                    $(jqTree).parents(".combo-panel").find(".combotree-tips").html("暂无数据")
+                }
+            }
+
+        },
+
+        /**
+         * 展示节点的子节点（子节点有可能在搜索的过程中被隐藏了）
+         * @param node easyui tree节点
+         */
+        showChildren: function (jqTree, node) {
+            //easyui tree的tree对象。可以通过tree.methodName(jqTree)方式调用easyui tree的方法
+            var tree = this;
+
+            //展示子节点
+            if (!tree.isLeaf(jqTree, node.target)) {
+                var children = tree.getChildren(jqTree, node.target);
+                if (children && children.length > 0) {
+                    for (var i = 0; i < children.length; i++) {
+                        if ($(children[i].target).is(":hidden")) {
+                            $(children[i].target).show();
+                        }
+                    }
+                }
+            }
+        },
+
+        /**
+         * 将滚动条滚动到指定的节点位置，使该节点可见（如果有滚动条才滚动，没有滚动条就不滚动）
+         * @param param {
+         *    treeContainer: easyui tree的容器（即存在滚动条的树容器）。如果为null，则取easyui tree的根UL节点的父节点。
+         *    targetNode:  将要滚动到的easyui tree节点。如果targetNode为空，则默认滚动到当前已选中的节点，如果没有选中的节点，则不滚动
+         * }
+         */
+        scrollTo: function (jqTree, param) {
+            //easyui tree的tree对象。可以通过tree.methodName(jqTree)方式调用easyui tree的方法
+            var tree = this;
+
+            //如果node为空，则获取当前选中的node
+            var targetNode = param && param.targetNode ? param.targetNode : tree.getSelected(jqTree);
+
+            if (targetNode != null) {
+                //判断节点是否在可视区域
+                var root = tree.getRoot(jqTree);
+                var $targetNode = $(targetNode.target);
+                var container = param && param.treeContainer ? param.treeContainer : jqTree.parent();
+                var containerH = container.height();
+                var nodeOffsetHeight = $targetNode.offset().top - container.offset().top;
+                if (nodeOffsetHeight > (containerH - 30)) {
+                    var scrollHeight = container.scrollTop() + nodeOffsetHeight - containerH + 30;
+                    container.scrollTop(scrollHeight);
+                }
+            }
+        }
+    });
+
+    /**
+     * 展示搜索匹配的节点
+     */
+    function showMatchedNode(jqTree, tree, node) {
+        //展示所有父节点
+        $(node.target).show();
+        $(".tree-title", node.target).addClass("tree-node-targeted");
+        var pNode = node;
+        while ((pNode = tree.getParent(jqTree, pNode.target))) {
+            $(pNode.target).show();
+        }
+        //展开到该节点
+        tree.expandTo(jqTree, node.target);
+        //如果是非叶子节点，需折叠该节点的所有子节点
+        if (!tree.isLeaf(jqTree, node.target)) {
+            tree.collapse(jqTree, node.target);
+        }
+    }
+
+    /**
+     * 判断searchText是否与targetText匹配
+     * @param searchText 检索的文本
+     * @param targetText 目标文本
+     * @return true-检索的文本与目标文本匹配；否则为false.
+     */
+    function isMatch(searchText, targetText) {
+        var flag = $.trim(targetText) != "" && targetText.indexOf(searchText) != -1;
+        return flag;
+    }
+
+    /**
+     * 获取easyui tree的所有node节点
+     */
+    function getAllNodes(jqTree, tree) {
+        var allNodeList = jqTree.data("allNodeList");
+        if (!allNodeList) {
+            var roots = tree.getRoots(jqTree);
+            allNodeList = getChildNodeList(jqTree, tree, roots);
+            jqTree.data("allNodeList", allNodeList);
+        }
+        return allNodeList;
+    }
+
+    /**
+     * 定义获取easyui tree的子节点的递归算法
+     */
+    function getChildNodeList(jqTree, tree, nodes) {
+        var childNodeList = [];
+        if (nodes && nodes.length > 0) {
+            var node = null;
+            for (var i = 0; i < nodes.length; i++) {
+                node = nodes[i];
+                childNodeList.push(node);
+                if (!tree.isLeaf(jqTree, node.target)) {
+                    var children = tree.getChildren(jqTree, node.target);
+                    childNodeList = childNodeList.concat(getChildNodeList(jqTree, tree, children));
+                }
+            }
+        }
+        return childNodeList;
+    }
+
+
+
+
+    $('#cc')._combotree({
+         onlyLeafCheck: true
+    })
+
+    $('#cc').combotree('loadData', [{
+        id: 1,
+        text: 'Languages',
+        type:0,
+        children: [{
+            id: 11,
+            type:1,
+            text: 'Java'
+        },{
+            id: 12,
+            text: 'C++',
+            type:1,
+        }]
+    }]);
+
+</script>
+</body>
+</html>
